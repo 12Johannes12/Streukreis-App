@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streukreis App - Finale Web-Basis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .upload-section, .settings-section, .zoom-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+        .upload-section {
+            border: 2px dashed #ccc;
+            text-align: center;
+        }
+        .settings-section label, .zoom-section label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+        }
+        select, input[type="range"] {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            box-sizing: border-box;
+        }
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .zoom-slider {
+            flex-grow: 1;
+            cursor: pointer;
+        }
+        .status {
+            font-style: italic;
+            color: #666;
+        }
+        #viewportWrapper {
+            width: 100%;
+            height: 450px;
+            overflow: auto; /* Aktiviert Scrollbalken am Laptop und Wischen auf Android */
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #eaeaea; 
+            margin-top: 15px;
+        }
+        #imageContainer {
+            position: relative;
+            display: inline-block;
+        }
+        #targetImage {
+            height: auto;
+            display: none; 
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        .shot-marker {
+            position: absolute;
+            background-color: rgba(255, 0, 0, 0.4); 
+            border: 2px solid #ff0000;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+        }
+        button:hover {
+            background-color: #bd2130;
+        }
+        .evaluation {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        .highlight-result {
+            font-size: 18px;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📷 Streukreis App - Visueller Abgleich</h1>
+    
+    <!-- Datei-Upload -->
+    <div class="upload-section">
+        <input type="file" id="fileUpload" accept="image/*">
+        <p class="status">Status: <span id="statusText">Warte auf Bildauswahl...</span></p>
+    </div>
+
+    <!-- C.I.P. Kaliberauswahl -->
+    <div class="settings-section">
+        <label for="caliberSelect">🎯 C.I.P. Geschossdurchmesser (Feste Marker-Größe):</label>
+        <select id="caliberSelect">
+            <optgroup label="Standard- & Jagdkaliber (7.62mm / .30)">
+                <option value="7.85" selected>.308 Win / .30-06 / .300 WM (C.I.P. d=7.85mm)</option>
+                <option value="7.92">7.62x39mm (z.B. .311 / d=7.92mm)</option>
+                <option value="8.22">8x57 IS / IRS - 8.22mm</option>
+            </optgroup>
+            <optgroup label="Kleinkaliber / Airgun">
+                <option value="4.50">4.5 mm / .177 (z.B. Diabolo) - 4.50mm</option>
+            </optgroup>
+            <optgroup label="Zentralfeuer Kleinkaliber (5.6mm / .22)">
+                <option value="5.69">.223 Rem / 5.56x45mm NATO - 5.69mm</option>
+            </optgroup>
+            <optgroup label="Mittelkaliber (6mm bis 7mm)">
+                <option value="6.71">6.5 Creedmoor / 6.5x55 SE - 6.71mm</option>
+            </optgroup>
+        </select>
+    </div>
+
+    <!-- Zoom-Schieber -->
+    <div class="zoom-section">
+        <label for="zoomSlider">🔍 Foto-Breite anpassen (Marker bleibt gleich):</label>
+        <div class="zoom-controls">
+            <input type="range" id="zoomSlider" class="zoom-slider" min="300" max="1500" step="10" value="500">
+            <span id="zoomValue">500px Breite</span>
+        </div>
+    </div>
+
+    <!-- Anzeige-Fenster -->
+    <div id="viewportWrapper">
+        <div id="imageContainer">
+            <img id="targetImage" src="" alt="Geladene Zielscheibe">
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="deleteLastClick">Letzten Klick löschen</button>
+    </div>
+
+    <div class="evaluation">
+        <h3>📊 Auswertung</h3>
+        <p>Anzahl markierte Schüsse: <strong id="shotCounter">0</strong></p>
+        <p>Aktuell gewähltes Kaliber: <strong id="currentCaliberDisplay">7.85 mm</strong></p>
+        <p class="highlight-result">Max. Streukreis (Mitte-Mitte): <strong id="groupSizeDisplay">0.00 mm</strong></p>
+    </div>
+</div>
+
+<script>
+    const fileUpload = document.getElementById('fileUpload');
+    const targetImage = document.getElementById('targetImage');
+    const imageContainer = document.getElementById('imageContainer');
+    const statusText = document.getElementById('statusText');
+    const caliberSelect = document.getElementById('caliberSelect');
+    const currentCaliberDisplay = document.getElementById('currentCaliberDisplay');
+    const shotCounter = document.getElementById('shotCounter');
+    const deleteLastClick = document.getElementById('deleteLastClick');
+    const zoomSlider = document.getElementById('zoomSlider');
+    const zoomValue = document.getElementById('zoomValue');
+    const groupSizeDisplay = document.getElementById('groupSizeDisplay');
+
+    let shots = [];
+    let imageLoaded = false; 
+    const PX_PER_MM_CONSTANT = 4; // 1mm Kaliber entspricht immer exakt 4px auf dem Monitor
+
+    function getMarkerPixelSize(caliberValue) {
+        return caliberValue * PX_PER_MM_CONSTANT;
+    }
+
+    zoomSlider.addEventListener('input', function() {
+        if (!imageLoaded) return;
+        const widthPx = zoomSlider.value;
+        zoomValue.textContent = widthPx + "px Breite";
+        targetImage.style.width = widthPx + "px";
+    });
+
+    caliberSelect.addEventListener('change', function() {
+        currentCaliberDisplay.textContent = caliberSelect.value + " mm";
+        updateMarkerSizes();
+        if (imageLoaded) calculateGroupSize();
+    });
+
+    function updateMarkerSizes() {
+        const currentCaliber = parseFloat(caliberSelect.value);
+        const pixelSize = getMarkerPixelSize(currentCaliber);
+        const markers = imageContainer.querySelectorAll('.shot-marker');
+        markers.forEach(marker => {
+            marker.style.width = pixelSize + 'px';
+            marker.style.height = pixelSize + 'px';
+        });
+    }
+
+    // --- MATHEMATISCHE STREUKREISBERECHNUNG (CTC) ---
+    function calculateGroupSize() {
+        if (!imageLoaded || shots.length < 2) {
+            groupSizeDisplay.textContent = "0.00 mm";
+            return;
+        }
+
+        const containerWidth = imageContainer.clientWidth;
+        const containerHeight = imageContainer.clientHeight;
+        if (!containerWidth || containerWidth <= 0) return;
+
+        let maxDistancePx = 0;
+
+        for (let i = 0; i < shots.length; i++) {
+            for (let j = i + 1; j < shots.length; j++) {
+                const x1 = (shots[i].x / 100) * containerWidth;
+                const y1 = (shots[i].y / 100) * containerHeight;
+                const x2 = (shots[j].x / 100) * containerWidth;
+                const y2 = (shots[j].y / 100) * containerHeight;
+
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const distancePx = Math.sqrt(dx * dx + dy * dy);
+
+                if (distancePx > maxDistancePx) {
+                    maxDistancePx = distancePx;
+                }
+            }
+        }
+
+        const maxDistanceMm = maxDistancePx / PX_PER_MM_CONSTANT;
+        groupSizeDisplay.textContent = maxDistanceMm.toFixed(2) + " mm";
+    }
+
+    // --- UPLOAD EXAKT BEIBEHALTEN ---
+    fileUpload.addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) { 
+            const reader = new FileReader();
+            
+            reader.onload = function(event) {
+                targetImage.src = event.target.result;
+                targetImage.style.display = 'block';
+                statusText.textContent = "Bild erfolgreich geladen. Passe den Zoom-Schieber an!";
+                imageLoaded = true;
+
+                // Standard-Startwerte festlegen
+                zoomSlider.value = "500";
+                zoomValue.textContent = "500px Breite";
+                targetImage.style.width = "500px";
+
+                // Daten zurücksetzen
+                shots = [];
+                shotCounter.textContent = "0";
+                groupSizeDisplay.textContent = "0.00 mm";
+                
+                const oldMarkers = imageContainer.querySelectorAll('.shot-marker');
+                oldMarkers.forEach(m => m.remove());
+            };
+            
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    });
+
+    // --- KLICK-LOGIK ---
+    imageContainer.addEventListener('click', function(e) {
