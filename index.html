@@ -61,7 +61,7 @@
         #viewportWrapper {
             width: 100%;
             height: 450px;
-            overflow: auto; /* Aktiviert Scrollbalken am Laptop und Wischen auf Android */
+            overflow: auto;
             border: 1px solid #ddd;
             border-radius: 4px;
             background-color: #eaeaea; 
@@ -142,13 +142,11 @@
 <div class="container">
     <h1>📷 Streukreis App - Visueller Abgleich</h1>
     
-    <!-- Upload-Bereich -->
     <div class="upload-section">
         <input type="file" id="fileUpload" accept="image/*">
         <p class="status">Status: <span id="statusText">Warte auf Bildauswahl...</span></p>
     </div>
 
-    <!-- C.I.P. Kaliberauswahl -->
     <div class="settings-section">
         <label for="caliberSelect">🎯 C.I.P. Geschossdurchmesser (Feste Marker-Größe):</label>
         <select id="caliberSelect">
@@ -169,7 +167,6 @@
         </select>
     </div>
 
-    <!-- Zoom-Schieber -->
     <div class="zoom-section">
         <label for="zoomSlider">🔍 Foto-Breite anpassen (Marker bleibt gleich):</label>
         <div class="zoom-controls">
@@ -215,7 +212,7 @@
 
     let shots = [];
     let imageLoaded = false; 
-    const PX_PER_MM_CONSTANT = 4; // 1mm Kaliber entspricht 4px auf dem Monitor
+    const PX_PER_MM_CONSTANT = 4; 
 
     function getMarkerPixelSize(caliberValue) {
         return caliberValue * PX_PER_MM_CONSTANT;
@@ -285,3 +282,9 @@
             for (let j = i + 1; j < shots.length; j++) {
                 const x1 = (shots[i].x / 100) * containerWidth;
                 const y1 = (shots[i].y / 100) * containerHeight;
+                const x2 = (shots[j].x / 100) * containerWidth;
+                const y2 = (shots[j].y / 100) * containerHeight;
+
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+
