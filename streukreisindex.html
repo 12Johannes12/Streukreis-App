@@ -1,5 +1,287 @@
 <!DOCTYPE html>
+<html lang="de"><!DOCTYPE html>
 <html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streukreis App - Optimierte Berechnung</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .upload-section, .settings-section, .zoom-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+        .upload-section {
+            border: 2px dashed #ccc;
+            text-align: center;
+        }
+        .settings-section label, .zoom-section label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+        }
+        select, input[type="range"] {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            box-sizing: border-box;
+        }
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .zoom-slider {
+            flex-grow: 1;
+            cursor: pointer;
+        }
+        .status {
+            font-style: italic;
+            color: #666;
+        }
+        #viewportWrapper {
+            width: 100%;
+            height: 450px;
+            overflow: auto; /* Aktiviert Scrollbalken am Laptop und Wischen auf Android */
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #eaeaea; 
+            margin-top: 15px;
+        }
+        #imageContainer {
+            position: relative;
+            display: inline-block;
+        }
+        #targetImage {
+            height: auto;
+            display: none; 
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        .shot-marker {
+            position: absolute;
+            background-color: rgba(255, 0, 0, 0.4); 
+            border: 2px solid #ff0000;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        /* NEU: Visueller Schwerpunkt-Marker */
+        #centerMarker {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #28a745;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            z-index: 20;
+            box-shadow: 0 0 6px rgba(0,0,0,0.8);
+        }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+        }
+        button:hover {
+            background-color: #bd2130;
+        }
+        .evaluation {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        .highlight-result {
+            font-size: 18px;
+            color: #007bff;
+            margin: 8px 0;
+        }
+        .sub-result {
+            font-size: 16px;
+            color: #28a745;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📷 Streukreis App - Optimierte Auswertung</h1>
+    
+    <!-- Datei-Upload -->
+    <div class="upload-section">
+        <input type="file" id="fileUpload" accept="image/*">
+        <p class="status">Status: <span id="statusText">Warte auf Bildauswahl...</span></p>
+    </div>
+
+    <!-- C.I.P. Kaliberauswahl -->
+    <div class="settings-section">
+        <label for="caliberSelect">🎯 C.I.P. Geschossdurchmesser (Feste Marker-Größe):</label>
+        <select id="caliberSelect">
+            <optgroup label="Standard- & Jagdkaliber (7.62mm / .30)">
+                <option value="7.85" selected>.308 Win / .30-06 / .300 WM (C.I.P. d=7.85mm)</option>
+                <option value="7.92">7.62x39mm (z.B. .311 / d=7.92mm)</option>
+                <option value="8.22">8x57 IS / IRS - 8.22mm</option>
+            </optgroup>
+            <optgroup label="Kleinkaliber / Airgun">
+                <option value="4.50">4.5 mm / .177 (z.B. Diabolo) - 4.50mm</option>
+            </optgroup>
+            <optgroup label="Zentralfeuer Kleinkaliber (5.6mm / .22)">
+                <option value="5.69">.223 Rem / 5.56x45mm NATO - 5.69mm</option>
+            </optgroup>
+            <optgroup label="Mittelkaliber (6mm bis 7mm)">
+                <option value="6.71">6.5 Creedmoor / 6.5x55 SE - 6.71mm</option>
+            </optgroup>
+        </select>
+    </div>
+
+    <!-- Zoom-Schieber -->
+    <div class="zoom-section">
+        <label for="zoomSlider">🔍 Foto-Breite anpassen (Marker bleibt gleich):</label>
+        <div class="zoom-controls">
+            <input type="range" id="zoomSlider" class="zoom-slider" min="300" max="1500" step="10" value="500">
+            <span id="zoomValue">500px Breite</span>
+        </div>
+    </div>
+
+    <!-- Anzeige-Fenster -->
+    <div id="viewportWrapper">
+        <div id="imageContainer">
+            <img id="targetImage" src="" alt="Geladene Zielscheibe">
+            <!-- NEU: Grüner Punkt für den Schwerpunkt der Gruppe -->
+            <div id="centerMarker"></div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="deleteLastClick">Letzten Klick löschen</button>
+    </div>
+
+    <div class="evaluation">
+        <h3>📊 Optimierte Auswertung</h3>
+        <p>Anzahl markierte Schüsse: <strong id="shotCounter">0</strong></p>
+        <p>Aktuell gewähltes Kaliber: <strong id="currentCaliberDisplay">7.85 mm</strong></p>
+        
+        <!-- OPTIMIERT: Geteilte und erweiterte Messwertausgabe -->
+        <p class="highlight-result">🎯 Streukreis (Mitte-Mitte / CTC): <strong id="groupSizeDisplay">0.00 mm</strong></p>
+        <p class="sub-result">📏 Streukreis (Außen-Außen / Subtend): <strong id="subtendDisplay">0.00 mm</strong></p>
+    </div>
+</div>
+
+<script>
+    const fileUpload = document.getElementById('fileUpload');
+    const targetImage = document.getElementById('targetImage');
+    const imageContainer = document.getElementById('imageContainer');
+    const statusText = document.getElementById('statusText');
+    const caliberSelect = document.getElementById('caliberSelect');
+    const currentCaliberDisplay = document.getElementById('currentCaliberDisplay');
+    const shotCounter = document.getElementById('shotCounter');
+    const deleteLastClick = document.getElementById('deleteLastClick');
+    const zoomSlider = document.getElementById('zoomSlider');
+    const zoomValue = document.getElementById('zoomValue');
+    const groupSizeDisplay = document.getElementById('groupSizeDisplay');
+    
+    // NEU: Zusätzliche Ausgabeelemente laden
+    const subtendDisplay = document.getElementById('subtendDisplay');
+    const centerMarker = document.getElementById('centerMarker');
+
+    let shots = [];
+    let imageLoaded = false; 
+    const PX_PER_MM_CONSTANT = 4; // 1mm Kaliber entspricht immer exakt 4px auf dem Monitor
+
+    function getMarkerPixelSize(caliberValue) {
+        return caliberValue * PX_PER_MM_CONSTANT;
+    }
+
+    zoomSlider.addEventListener('input', function() {
+        if (!imageLoaded) return;
+        const widthPx = zoomSlider.value;
+        zoomValue.textContent = widthPx + "px Breite";
+        targetImage.style.width = widthPx + "px";
+        calculateGroupSize(); // Berechnet den Schwerpunkt beim Skalieren dynamisch neu
+    });
+
+    caliberSelect.addEventListener('change', function() {
+        currentCaliberDisplay.textContent = caliberSelect.value + " mm";
+        updateMarkerSizes();
+        if (imageLoaded) calculateGroupSize();
+    });
+
+    function updateMarkerSizes() {
+        const currentCaliber = parseFloat(caliberSelect.value);
+        const pixelSize = getMarkerPixelSize(currentCaliber);
+        const markers = imageContainer.querySelectorAll('.shot-marker');
+        markers.forEach(marker => {
+            marker.style.width = pixelSize + 'px';
+            marker.style.height = pixelSize + 'px';
+        });
+    }
+
+    // --- OPTIMIERTE STREUKREISBERECHNUNG ---
+    function calculateGroupSize() {
+        const currentCaliber = parseFloat(caliberSelect.value);
+
+        if (!imageLoaded || shots.length < 1) {
+            groupSizeDisplay.textContent = "0.00 mm";
+            subtendDisplay.textContent = "0.00 mm";
+            centerMarker.style.display = "none";
+            return;
+        }
+
+        const containerWidth = imageContainer.clientWidth;
+        const containerHeight = imageContainer.clientHeight;
+        if (!containerWidth || containerWidth <= 0) return;
+
+        // 1. SCHWERPUNKT (Center of Mass) BERECHNEN
+        let sumX = 0;
+        let sumY = 0;
+        for (let i = 0; i < shots.length; i++) {
+            sumX += (shots[i].x / 100) * containerWidth;
+            sumY += (shots[i].y / 100) * containerHeight;
+        }
+        const avgX = sumX / shots.length;
+        const avgY = sumY / shots.length;
+
+        // Schwerpunkt-Marker visuell platzieren
+        centerMarker.style.left = (avgX / containerWidth * 100) + "%";
+        centerMarker.style.top = (avgY / containerHeight * 100) + "%";
+        centerMarker.style.display = "block";
+
+        if (shots.length < 2) {
+            groupSizeDisplay.textContent = "0.00 mm";
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
